@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# Core runtime (required) — enough to run `--dry-run` with no API key.
+# ---------------------------------------------------------------------------
+pydantic>=2.5
+tiktoken>=0.5          # provider-neutral token counting (offline)
+python-dotenv>=1.0
+
+# ---------------------------------------------------------------------------
+# Orchestration frameworks (hybrid design)
+#   - LlamaIndex  -> repository loading + code-aware chunking
+#   - LangChain   -> model-agnostic LLM access + extraction/synthesis chains
+# ---------------------------------------------------------------------------
+langchain>=0.2
+langchain-core>=0.2
+langchain-community>=0.2
+llama-index-core>=0.10
+
+# ---------------------------------------------------------------------------
+# LLM providers (install only the one(s) you use — the factory imports lazily).
+# The program is model-agnostic; pick any of these or an OpenAI-compatible
+# local server (Ollama / LM Studio / vLLM) via the `openai` provider + base_url.
+# ---------------------------------------------------------------------------
+langchain-anthropic>=0.1      # provider=anthropic
+langchain-openai>=0.1         # provider=openai (also OpenAI-compatible local servers)
+langchain-ollama>=0.1         # provider=ollama (fully local / free)
+
+# ---------------------------------------------------------------------------
+# Optional — tree-sitter powered code splitting (LlamaIndex CodeSplitter).
+# If absent, the chunker gracefully falls back to token-based splitting.
+# ---------------------------------------------------------------------------
+# tree-sitter>=0.21
+# tree-sitter-languages>=1.10

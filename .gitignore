@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+
+# Environment / secrets
+.env
+*.key
+
+# Cloned target repositories (analyzer clones into here by default)
+/.cache/
+/repos/
+spring-rest-sakila/
+
+# OS
+.DS_Store
