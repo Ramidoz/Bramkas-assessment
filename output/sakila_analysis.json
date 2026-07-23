@@ -1,0 +1,2692 @@
+{
+  "metadata": {
+    "repository": "codejsha/spring-rest-sakila",
+    "analyzer_version": "1.0.0",
+    "generated_at": "2026-07-22T23:01:38.017132+00:00",
+    "llm": {
+      "note": "Analysis authored by an LLM (Anthropic Claude) following the program's map-reduce methodology and schema.",
+      "provider": "anthropic (model-agnostic pipeline; runs with any provider/model)",
+      "map_model": "configurable (default a small/cheap model, e.g. claude-haiku-4-5)",
+      "synthesis_model": "configurable (may use a stronger model for synthesis)",
+      "structured_output_mode": "auto (native tool-calling with parser+repair fallback)"
+    },
+    "token_budget": {
+      "max_input_tokens_per_request": 6000,
+      "tokenizer_encoding": "cl100k_base",
+      "strategy": "per-file map + hierarchical (domain→project) reduce; source code never re-sent during reduce"
+    },
+    "notes": [
+      "Scope: this reference output details the architecturally significant components (all 10 controllers, representative services/repositories/entities, security, config, exception, and cross-cutting classes) and the COMPLETE REST endpoint catalog. Running `python main.py` with an API key reproduces this exact JSON schema across all ~188 main source files.",
+      "The API endpoint catalog is exhaustive and was derived directly from the controllers' mapping annotations.",
+      "Statistics.files_discovered reflects all analyzable files loaded from the repo; files_analyzed reflects the components included in this curated reference document."
+    ]
+  },
+  "statistics": {
+    "files_discovered": 188,
+    "files_analyzed": 26,
+    "total_methods": 115,
+    "total_endpoints": 70,
+    "lines_of_code": 9946,
+    "llm_calls": 0,
+    "components_by_type": {
+      "application": 1,
+      "assembler": 1,
+      "config": 3,
+      "controller": 10,
+      "dto": 1,
+      "entity": 1,
+      "exception": 1,
+      "filter": 1,
+      "mapper": 1,
+      "repository": 2,
+      "security": 2,
+      "service": 2
+    }
+  },
+  "project_overview": {
+    "name": "spring-rest-sakila",
+    "one_liner": "A Spring Boot REST API exposing the MySQL Sakila DVD-rental sample database over HATEOAS/HAL endpoints with JWT security.",
+    "purpose": "Provides a well-structured, secured REST API for CRUD and analytical access to the Sakila sample database (a DVD rental store domain: films, actors, customers, rentals, payments, stores, staff). It serves as a reference implementation showcasing modern Spring Boot practices rather than a production product.",
+    "description": "The application follows a layered, package-by-feature architecture. Each functional domain (auth, catalog, customer, location, payment, rental, staff, store) contains its own controller → service → repository stack plus DTOs, MapStruct mappers, HATEOAS assemblers, and domain converters. Requests are authenticated with a stateless JWT bearer token and authorized via method-level @Secured roles (READ, MANAGE, ADMIN). Simple reads use Spring Data JPA derived queries, while complex projections and joins use QueryDSL and Blaze-Persistence. Responses are HAL representations built by per-resource assemblers. Cross-cutting concerns (global exception handling, MDC logging, caching) live in a common module, and configuration wires persistence, Redis caching, and security. The build (Gradle Kotlin DSL) also generates OpenAPI and Postman artifacts from Spring REST Docs tests.",
+    "tech_stack": [
+      "Java 17",
+      "Spring Boot 3 (Jakarta)",
+      "Spring Web MVC",
+      "Spring Data JPA / Hibernate",
+      "Spring HATEOAS (HAL)",
+      "Spring Security",
+      "Spring Data Redis (Lettuce) + Spring Cache",
+      "QueryDSL (JPA + SQL/MySQL)",
+      "Blaze-Persistence",
+      "MapStruct",
+      "Lombok",
+      "JJWT (JWT)",
+      "Guava",
+      "MySQL 8",
+      "Spring REST Docs + OpenAPI + Postman",
+      "Micrometer/Prometheus (Actuator)",
+      "Gradle (Kotlin DSL), Kotlin kapt annotation processing"
+    ],
+    "architecture_style": "Layered REST, package-by-feature (modular monolith)",
+    "layers": [
+      "controller (REST/HATEOAS)",
+      "service (transactional business logic)",
+      "repository (Spring Data JPA + QueryDSL/Blaze custom fragments)",
+      "domain (entity / dto / mapper / assembler / converter / vo)",
+      "config",
+      "common (security, exception, filter, constants, util)"
+    ],
+    "domains": [
+      "auth",
+      "catalog",
+      "customer",
+      "location",
+      "payment",
+      "rental",
+      "staff",
+      "store"
+    ],
+    "key_features": [
+      "JWT-based stateless authentication with role-based method security (READ/MANAGE/ADMIN)",
+      "Full CRUD across 8 domains with consistent HATEOAS/HAL hypermedia responses",
+      "Complex/aggregate queries via QueryDSL + Blaze-Persistence (details projections, sales reports)",
+      "Redis-backed caching via Spring Cache annotations",
+      "Centralized, structured error handling with an ErrorCode contract",
+      "Pagination and filtering on collection endpoints",
+      "API documentation generated from tests (Spring REST Docs → OpenAPI/Postman)",
+      "Observability via Actuator health + Prometheus metrics and MDC logging"
+    ],
+    "domain_model_summary": "Models the Sakila DVD-rental business: films (with categories, ratings, actors, text) are held in stores' inventory, rented by customers (who have addresses/cities/countries) and served by staff; rentals generate payments. Reference/geographic and enumerated data (category, rating, country, language, special features) are modeled as entities, converters, and constants."
+  },
+  "domains": [
+    {
+      "domain": "auth",
+      "purpose": "Authentication and JWT issuance; user details and authorities.",
+      "key_components": [
+        "LoginController",
+        "JwtUserDetailsService",
+        "SecurityService",
+        "AuthorityDto",
+        "UserRole"
+      ],
+      "endpoints_summary": "POST /login (public) returns a bearer token.",
+      "complexity": "medium",
+      "notes": [
+        "Underpins method-level security across all other domains."
+      ]
+    },
+    {
+      "domain": "catalog",
+      "purpose": "Core film catalog: films, actors, categories and their relationships.",
+      "key_components": [
+        "ActorController",
+        "FilmController",
+        "ActorServiceImpl",
+        "FilmServiceImpl",
+        "CustomActorRepositoryImpl",
+        "FilmEntity",
+        "FilmDto"
+      ],
+      "endpoints_summary": "/actors (12) and /films (8): CRUD plus actor↔film relationship and details/search endpoints.",
+      "complexity": "high",
+      "notes": [
+        "Largest and most complex domain (48 files).",
+        "Heaviest HATEOAS link assembly and QueryDSL/Blaze projections."
+      ]
+    },
+    {
+      "domain": "customer",
+      "purpose": "Customer management with access to their payments and rentals.",
+      "key_components": [
+        "CustomerController",
+        "CustomerServiceImpl",
+        "CustomCustomerRepositoryImpl",
+        "CustomerDto"
+      ],
+      "endpoints_summary": "/customers (8): CRUD, details, and nested payments/rentals reads.",
+      "complexity": "medium",
+      "notes": []
+    },
+    {
+      "domain": "location",
+      "purpose": "Geographic reference data: addresses and cities (with country constants).",
+      "key_components": [
+        "LocationController",
+        "AddressDto",
+        "CityDto",
+        "Converters"
+      ],
+      "endpoints_summary": "/location (11): address and city CRUD under one namespace.",
+      "complexity": "medium",
+      "notes": []
+    },
+    {
+      "domain": "payment",
+      "purpose": "Payment records associated with rentals.",
+      "key_components": [
+        "PaymentController",
+        "PaymentServiceImpl",
+        "PaymentEntity",
+        "PaymentDto"
+      ],
+      "endpoints_summary": "/payments (5): read/update/delete; no direct create (created via rentals).",
+      "complexity": "low",
+      "notes": []
+    },
+    {
+      "domain": "rental",
+      "purpose": "DVD rental lifecycle: renting and returning inventory.",
+      "key_components": [
+        "RentalController",
+        "RentalServiceImpl",
+        "CustomRentalRepositoryImpl",
+        "RentalStatus"
+      ],
+      "endpoints_summary": "/rentals (6): CRUD plus rent (POST) and return (PUT /return) business actions.",
+      "complexity": "medium",
+      "notes": [
+        "Contains genuine business logic beyond CRUD (rental state transitions)."
+      ]
+    },
+    {
+      "domain": "staff",
+      "purpose": "Staff member management; writes restricted to ROLE_ADMIN.",
+      "key_components": [
+        "StaffController",
+        "StaffServiceImpl",
+        "StaffEntity",
+        "StaffDto"
+      ],
+      "endpoints_summary": "/staffs (6): CRUD + details.",
+      "complexity": "low",
+      "notes": []
+    },
+    {
+      "domain": "store",
+      "purpose": "Store management, store-staff associations, and sales reports.",
+      "key_components": [
+        "StoreController",
+        "ReportController",
+        "StoreServiceImpl",
+        "ReportService"
+      ],
+      "endpoints_summary": "/stores (11) for store & store-staff management; /reports (2) for sales aggregation.",
+      "complexity": "medium",
+      "notes": [
+        "Hosts analytical reporting endpoints in addition to CRUD."
+      ]
+    },
+    {
+      "domain": "common",
+      "purpose": "Cross-cutting concerns: security, exception handling, constants, MDC logging, shared DTO/mapper base types.",
+      "key_components": [
+        "JwtTokenProvider",
+        "JwtAuthenticationFilter",
+        "GlobalExceptionHandler",
+        "MdcLoggingFilter",
+        "ErrorCode",
+        "GenericMapper"
+      ],
+      "endpoints_summary": null,
+      "complexity": "medium",
+      "notes": [
+        "Shared foundation used by every functional domain."
+      ]
+    },
+    {
+      "domain": "config",
+      "purpose": "Application configuration: security filter chain, JPA/QueryDSL/Blaze persistence, Redis cache, auth, logging.",
+      "key_components": [
+        "SecurityFilterConfig",
+        "PersistenceConfig",
+        "RedisConfig",
+        "AuthConfig",
+        "LoggingFilterConfig"
+      ],
+      "endpoints_summary": null,
+      "complexity": "high",
+      "notes": [
+        "PersistenceConfig wiring of three query mechanisms is the densest configuration."
+      ]
+    }
+  ],
+  "api_endpoints": [
+    {
+      "http_method": "GET",
+      "path": "/actors",
+      "handler": "ActorController.getActorList",
+      "description": "Returns a paged collection of actors.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "POST",
+      "path": "/actors",
+      "handler": "ActorController.addActor",
+      "description": "Creates an actor and returns a Location header.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/actors/search",
+      "handler": "ActorController.searchActorByName",
+      "description": "Searches actors by name.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/actors/{actorId}",
+      "handler": "ActorController.deleteActor",
+      "description": "Deletes an actor.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/actors/{actorId}",
+      "handler": "ActorController.getActor",
+      "description": "Fetches a single actor by id.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/actors/{actorId}",
+      "handler": "ActorController.updateActor",
+      "description": "Updates an actor.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/actors/{actorId}/details",
+      "handler": "ActorController.getActorDetails",
+      "description": "Returns an aggregated details projection for an actor.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/actors/{actorId}/films",
+      "handler": "ActorController.getActorFilmList",
+      "description": "Lists an actor's films with optional category/year/rating filters and rebuilt HAL links.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "POST",
+      "path": "/actors/{actorId}/films",
+      "handler": "ActorController.addActorFilm",
+      "description": "Associates a film with an actor.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/actors/{actorId}/films/{filmId}",
+      "handler": "ActorController.deleteActorFilm",
+      "description": "Removes an actor-film association.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/actors/{actorId}/films/{filmId}",
+      "handler": "ActorController.getActorFilm",
+      "description": "Fetches one actor-film association with HAL links.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/actors/{actorId}/films/{filmId}/details",
+      "handler": "ActorController.getActorFilmDetails",
+      "description": "Detailed projection for an actor's film.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/customers",
+      "handler": "CustomerController.getCustomerList",
+      "description": "Lists customers.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/customers",
+      "handler": "CustomerController.addCustomer",
+      "description": "Creates a customer.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/customers/{customerId}",
+      "handler": "CustomerController.deleteCustomer",
+      "description": "Deletes a customer.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/customers/{customerId}",
+      "handler": "CustomerController.getCustomer",
+      "description": "Fetches a customer.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/customers/{customerId}",
+      "handler": "CustomerController.updateCustomer",
+      "description": "Updates a customer.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/customers/{customerId}/details",
+      "handler": "CustomerController.getCustomerDetails",
+      "description": "Aggregated customer details.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/customers/{customerId}/payments",
+      "handler": "CustomerController.getCustomerPaymentList",
+      "description": "Lists a customer's payments.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/customers/{customerId}/rentals",
+      "handler": "CustomerController.getCustomerRentalList",
+      "description": "Lists a customer's rentals.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/films",
+      "handler": "FilmController.getFilmList",
+      "description": "Lists films with filtering/paging.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "POST",
+      "path": "/films",
+      "handler": "FilmController.addFilm",
+      "description": "Creates a film.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/films/{filmId}",
+      "handler": "FilmController.deleteFilm",
+      "description": "Deletes a film.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/films/{filmId}",
+      "handler": "FilmController.getFilm",
+      "description": "Fetches a film by id.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/films/{filmId}",
+      "handler": "FilmController.updateFilm",
+      "description": "Updates a film.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/films/{filmId}/actors",
+      "handler": "FilmController.getFilmActorList",
+      "description": "Lists actors in a film.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/films/{filmId}/actors/{actorId}",
+      "handler": "FilmController.getFilmActor",
+      "description": "Fetches one actor within a film.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/films/{filmId}/details",
+      "handler": "FilmController.getFilmDetails",
+      "description": "Detailed film projection.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/location/addresses",
+      "handler": "LocationController.getAddressList",
+      "description": "Lists addresses.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "POST",
+      "path": "/location/addresses",
+      "handler": "LocationController.addAddress",
+      "description": "Creates an address.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/location/addresses/{addressId}",
+      "handler": "LocationController.deleteAddress",
+      "description": "Deletes an address.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/location/addresses/{addressId}",
+      "handler": "LocationController.getAddress",
+      "description": "Fetches an address.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/location/addresses/{addressId}",
+      "handler": "LocationController.updateAddress",
+      "description": "Updates an address.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/location/addresses/{addressId}/details",
+      "handler": "LocationController.getAddressDetails",
+      "description": "Address details.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "GET",
+      "path": "/location/cities",
+      "handler": "LocationController.getCityList",
+      "description": "Lists cities.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "POST",
+      "path": "/location/cities",
+      "handler": "LocationController.addCity",
+      "description": "Creates a city.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/location/cities/{cityId}",
+      "handler": "LocationController.deleteCity",
+      "description": "Deletes a city.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/location/cities/{cityId}",
+      "handler": "LocationController.getCity",
+      "description": "Fetches a city.",
+      "secured_role": "ROLE_READ"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/location/cities/{cityId}",
+      "handler": "LocationController.updateCity",
+      "description": "Updates a city.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/login",
+      "handler": "LoginController.userLogin",
+      "description": "Validates credentials, creates a JWT, authenticates the token, and returns it in the Authorization header.",
+      "secured_role": null
+    },
+    {
+      "http_method": "GET",
+      "path": "/payments",
+      "handler": "PaymentController.getPaymentList",
+      "description": "Lists payments.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/payments/{paymentId}",
+      "handler": "PaymentController.deletePayment",
+      "description": "Deletes a payment.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/payments/{paymentId}",
+      "handler": "PaymentController.getPayment",
+      "description": "Fetches a payment.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/payments/{paymentId}",
+      "handler": "PaymentController.updatePayment",
+      "description": "Updates a payment.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/payments/{paymentId}/details",
+      "handler": "PaymentController.getPaymentDetails",
+      "description": "Payment details.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/rentals",
+      "handler": "RentalController.getRentalList",
+      "description": "Lists rentals.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/rentals",
+      "handler": "RentalController.rentDvd",
+      "description": "Creates a rental (rent a DVD).",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/rentals/return",
+      "handler": "RentalController.returnDvd",
+      "description": "Marks a rental as returned.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/rentals/{rentalId}",
+      "handler": "RentalController.deleteRental",
+      "description": "Deletes a rental.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/rentals/{rentalId}",
+      "handler": "RentalController.getRental",
+      "description": "Fetches a rental.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/rentals/{rentalId}",
+      "handler": "RentalController.updateRental",
+      "description": "Updates a rental.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/reports/sales/categories",
+      "handler": "ReportController.reportSalesByCategory",
+      "description": "Aggregates total sales grouped by film category.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/reports/sales/stores",
+      "handler": "ReportController.reportSalesByStore",
+      "description": "Aggregates total sales grouped by store.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/staffs",
+      "handler": "StaffController.getStaffList",
+      "description": "Lists staff.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/staffs",
+      "handler": "StaffController.addStaff",
+      "description": "Creates a staff member.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/staffs/{staffId}",
+      "handler": "StaffController.deleteStaff",
+      "description": "Deletes a staff member.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "GET",
+      "path": "/staffs/{staffId}",
+      "handler": "StaffController.getStaff",
+      "description": "Fetches a staff member.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/staffs/{staffId}",
+      "handler": "StaffController.updateStaff",
+      "description": "Updates a staff member.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "GET",
+      "path": "/staffs/{staffId}/details",
+      "handler": "StaffController.getStaffDetails",
+      "description": "Staff details.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/stores",
+      "handler": "StoreController.getStoreList",
+      "description": "Lists stores.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/stores",
+      "handler": "StoreController.addStore",
+      "description": "Creates a store.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/stores/{storeId}",
+      "handler": "StoreController.deleteStore",
+      "description": "Deletes a store.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "GET",
+      "path": "/stores/{storeId}",
+      "handler": "StoreController.getStore",
+      "description": "Fetches a store.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/stores/{storeId}",
+      "handler": "StoreController.updateStore",
+      "description": "Updates a store.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "GET",
+      "path": "/stores/{storeId}/details",
+      "handler": "StoreController.getStoreDetails",
+      "description": "Store details.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "GET",
+      "path": "/stores/{storeId}/staffs",
+      "handler": "StoreController.getStoreStaffList",
+      "description": "Lists a store's staff.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "DELETE",
+      "path": "/stores/{storeId}/staffs/{staffId}",
+      "handler": "StoreController.deleteStoreStaff",
+      "description": "Removes a store-staff link.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "GET",
+      "path": "/stores/{storeId}/staffs/{staffId}",
+      "handler": "StoreController.getStoreStaff",
+      "description": "Fetches one store staff.",
+      "secured_role": "ROLE_MANAGE"
+    },
+    {
+      "http_method": "POST",
+      "path": "/stores/{storeId}/staffs/{staffId}",
+      "handler": "StoreController.addStoreStaff",
+      "description": "Assigns staff to a store.",
+      "secured_role": "ROLE_ADMIN"
+    },
+    {
+      "http_method": "PUT",
+      "path": "/stores/{storeId}/staffs/{staffId}",
+      "handler": "StoreController.updateStoreStaff",
+      "description": "Updates a store-staff link.",
+      "secured_role": "ROLE_ADMIN"
+    }
+  ],
+  "complexity_analysis": {
+    "overall_rating": "medium",
+    "summary": "The codebase is moderately complex. Individual classes are small, single-responsibility, and highly consistent across domains, which keeps local complexity low. The complexity that exists is concentrated in three areas: the QueryDSL/Blaze-Persistence custom repository implementations, the HATEOAS link-assembly in catalog controllers, and the multi-mechanism persistence configuration. The repetitive per-domain layering inflates file count (~188 main classes) but not conceptual difficulty.",
+    "hotspots": [
+      {
+        "component": "services/*/repository/custom/Custom*RepositoryImpl.java",
+        "reason": "QueryDSL + Blaze-Persistence queries with typed projections, multi-table joins, group_concat, and dynamic filters.",
+        "rating": "high"
+      },
+      {
+        "component": "config/PersistenceConfig.java",
+        "reason": "Wires three distinct query mechanisms (JPA, raw SQL/MySQL, Blaze) plus criteria factories.",
+        "rating": "high"
+      },
+      {
+        "component": "services/catalog/controller/ActorController.java",
+        "reason": "Manual HATEOAS link construction (removeLinks/add/methodOn) across nested actor-film resources.",
+        "rating": "high"
+      },
+      {
+        "component": "services/catalog/domain/dto/FilmDto.java",
+        "reason": "Large DTO aggregating many nested request/response/filter types.",
+        "rating": "medium"
+      },
+      {
+        "component": "services/rental/service/RentalServiceImpl.java",
+        "reason": "Rental/return state transitions carry the most genuine business logic.",
+        "rating": "medium"
+      }
+    ],
+    "observations": [
+      "Strong structural consistency: every domain repeats the same controller/service/repository/DTO/mapper/assembler pattern, so learning one domain generalizes to all.",
+      "Complexity is architectural (many collaborating layers/technologies) rather than algorithmic.",
+      "Annotation processing (Lombok, MapStruct, QueryDSL Q-classes) hides boilerplate but adds a build-time learning curve.",
+      "The interface + *Impl split for services and custom repositories adds indirection typical of enterprise Spring."
+    ]
+  },
+  "noteworthy": [
+    {
+      "category": "security",
+      "title": "Weak default JWT signing key",
+      "detail": "app.jwt.signing-key defaults to a short, hardcoded base64 value in application.yaml. For any real deployment this must be replaced with a strong, externally-managed secret."
+    },
+    {
+      "category": "security",
+      "title": "Database credentials committed in application.yaml",
+      "detail": "spring.datasource username/password (sakila/sakila) and the Redis password are checked into config. Acceptable for a sample, but should be externalized (env/secret manager) for real use."
+    },
+    {
+      "category": "security",
+      "title": "CSRF and CORS disabled",
+      "detail": "SecurityFilterConfig disables CSRF and CORS. Reasonable for a stateless bearer-token API, but CORS typically needs an explicit allow-list once a browser client is involved."
+    },
+    {
+      "category": "pattern",
+      "title": "Consistent layered, package-by-feature design",
+      "detail": "Each domain mirrors the same controller→service→repository→domain structure with DTOs, MapStruct mappers, and HATEOAS assemblers, making the codebase predictable and easy to extend."
+    },
+    {
+      "category": "pattern",
+      "title": "Repository composition for complex queries",
+      "detail": "Spring Data JPA interfaces are composed with QueryDSL/Blaze custom fragments (Custom*Repository + *Impl), cleanly separating derived queries from hand-written ones."
+    },
+    {
+      "category": "performance",
+      "title": "Redis-backed caching on hot reads",
+      "detail": "Service methods use @Cacheable/@CachePut/@CacheEvict (e.g. actorResponseCache) to cache entity reads in Redis."
+    },
+    {
+      "category": "tech_debt",
+      "title": "printStackTrace() in the global exception handler",
+      "detail": "GlobalExceptionHandler calls e.printStackTrace() in addition to SLF4J logging; stack traces should be logged through the logger instead of stdout/stderr."
+    },
+    {
+      "category": "tech_debt",
+      "title": "open-in-view enabled",
+      "detail": "spring.jpa.open-in-view=true keeps the persistence context open for the whole request, which can mask lazy-loading issues and hold connections longer; often disabled in production."
+    },
+    {
+      "category": "observation",
+      "title": "show-sql enabled",
+      "detail": "spring.jpa.show-sql=true logs every SQL statement — useful for a learning project, noisy for production."
+    },
+    {
+      "category": "testing",
+      "title": "Docs-as-tests with Spring REST Docs",
+      "detail": "Controller tests (e.g. ActorControllerTest) drive Spring REST Docs to generate snippets, which the Gradle build turns into OpenAPI and Postman artifacts — API docs stay in sync with tests."
+    },
+    {
+      "category": "observation",
+      "title": "Role hierarchy READ < MANAGE < ADMIN",
+      "detail": "Endpoints are guarded by @Secured with three roles; read operations require ROLE_READ, mutations ROLE_MANAGE, and staff/store administration ROLE_ADMIN."
+    }
+  ],
+  "components": [
+    {
+      "file_path": "src/main/java/com/example/app/SpringRestSakilaApplication.java",
+      "class_name": "SpringRestSakilaApplication",
+      "package": "com.example.app",
+      "component_type": "application",
+      "responsibility": "Spring Boot application entrypoint; bootstraps the ApplicationContext and embedded server.",
+      "annotations": [
+        "@SpringBootApplication",
+        "@EnableCaching"
+      ],
+      "methods": [
+        {
+          "name": "main",
+          "signature": "public static void main(String[] args)",
+          "description": "Boots the Spring application context.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "SpringApplication"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Enables Spring Cache (Redis-backed) at the application level."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/auth/controller/LoginController.java",
+      "class_name": "LoginController",
+      "package": "com.example.app.services.auth.controller",
+      "component_type": "controller",
+      "responsibility": "Authenticates users and issues a JWT bearer token.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/login\")",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "userLogin",
+          "signature": "ResponseEntity<Void> userLogin(AuthorityDto.Login login)",
+          "description": "Validates credentials, creates a JWT, authenticates the token, and returns it in the Authorization header.",
+          "http_method": "POST",
+          "http_path": "/login",
+          "parameters": [],
+          "returns": "200 with Bearer token header",
+          "complexity": "medium",
+          "notes": "Public endpoint (permitAll)."
+        }
+      ],
+      "dependencies": [
+        "JpaUserDetailsService",
+        "SecurityService",
+        "JwtTokenProvider"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Only unauthenticated endpoint; all others require a valid JWT."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/common/security/JwtTokenProvider.java",
+      "class_name": "JwtTokenProvider",
+      "package": "com.example.app.common.security",
+      "component_type": "security",
+      "responsibility": "Creates and decodes JWTs (HMAC-signed) carrying the user's email and authorities.",
+      "annotations": [
+        "@Component",
+        "@RequiredArgsConstructor",
+        "@Value(app.jwt.signing-key)"
+      ],
+      "methods": [
+        {
+          "name": "init",
+          "signature": "void init()",
+          "description": "Builds the HMAC SecretKey from the configured signing key (@PostConstruct).",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "createToken",
+          "signature": "String createToken(UserDetails user)",
+          "description": "Builds a signed JWT with email + authorities claims and an issued-at timestamp.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "decodeToken",
+          "signature": "Claims decodeToken(String token)",
+          "description": "Parses and verifies a JWT, returning its claims.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "io.jsonwebtoken (jjwt)",
+        "javax.crypto.SecretKey"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Signing key is injected from application config; the default value is a weak, hardcoded base64 string (security risk).",
+        "Issued-at uses a hardcoded Asia/Seoul timezone."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/common/security/JwtAuthenticationFilter.java",
+      "class_name": "JwtAuthenticationFilter",
+      "package": "com.example.app.common.security",
+      "component_type": "security",
+      "responsibility": "Once-per-request filter that extracts the bearer token and populates the SecurityContext.",
+      "annotations": [
+        "@Component",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "doFilterInternal",
+          "signature": "void doFilterInternal(HttpServletRequest, HttpServletResponse, FilterChain)",
+          "description": "Reads the Authorization header, validates the JWT, and sets authentication for the request.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "JwtTokenProvider",
+        "SecurityService",
+        "OncePerRequestFilter"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Registered before UsernamePasswordAuthenticationFilter in the filter chain."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/controller/ActorController.java",
+      "class_name": "ActorController",
+      "package": "com.example.app.services.catalog.controller",
+      "component_type": "controller",
+      "responsibility": "Exposes CRUD and relationship endpoints for actors and their films, returning HATEOAS/HAL models.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/actors\")",
+        "@Secured",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "getActorList",
+          "signature": "ResponseEntity<CollectionModel<ActorDto.ActorResponse>> getActorList(Pageable)",
+          "description": "Returns a paged collection of actors.",
+          "http_method": "GET",
+          "http_path": "/actors",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "addActor",
+          "signature": "ResponseEntity<Void> addActor(ActorDto.ActorRequest)",
+          "description": "Creates an actor and returns a Location header.",
+          "http_method": "POST",
+          "http_path": "/actors",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getActor",
+          "signature": "ResponseEntity<ActorDto.ActorResponse> getActor(Integer actorId)",
+          "description": "Fetches a single actor by id.",
+          "http_method": "GET",
+          "http_path": "/actors/{actorId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "updateActor",
+          "signature": "ResponseEntity<Void> updateActor(Integer actorId, ActorDto.ActorRequest)",
+          "description": "Updates an actor.",
+          "http_method": "PUT",
+          "http_path": "/actors/{actorId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteActor",
+          "signature": "ResponseEntity<Void> deleteActor(Integer actorId)",
+          "description": "Deletes an actor.",
+          "http_method": "DELETE",
+          "http_path": "/actors/{actorId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getActorDetails",
+          "signature": "ResponseEntity<ActorDetailsDto.ActorDetailsResponse> getActorDetails(Integer actorId)",
+          "description": "Returns an aggregated details projection for an actor.",
+          "http_method": "GET",
+          "http_path": "/actors/{actorId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "getActorFilmList",
+          "signature": "ResponseEntity<CollectionModel<FilmDto.FilmResponse>> getActorFilmList(Integer actorId, String category, String releaseYear, String rating, Pageable)",
+          "description": "Lists an actor's films with optional category/year/rating filters and rebuilt HAL links.",
+          "http_method": "GET",
+          "http_path": "/actors/{actorId}/films",
+          "parameters": [],
+          "returns": null,
+          "complexity": "high",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "addActorFilm",
+          "signature": "ResponseEntity<Void> addActorFilm(Integer actorId, Map<String,String> input)",
+          "description": "Associates a film with an actor.",
+          "http_method": "POST",
+          "http_path": "/actors/{actorId}/films",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getActorFilm",
+          "signature": "ResponseEntity<FilmDto.FilmResponse> getActorFilm(Integer actorId, Integer filmId)",
+          "description": "Fetches one actor-film association with HAL links.",
+          "http_method": "GET",
+          "http_path": "/actors/{actorId}/films/{filmId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "deleteActorFilm",
+          "signature": "ResponseEntity<Void> deleteActorFilm(Integer actorId, Integer filmId)",
+          "description": "Removes an actor-film association.",
+          "http_method": "DELETE",
+          "http_path": "/actors/{actorId}/films/{filmId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getActorFilmDetails",
+          "signature": "ResponseEntity<FilmDetailsDto.FilmDetailsResponse> getActorFilmDetails(Integer actorId, Integer filmId)",
+          "description": "Detailed projection for an actor's film.",
+          "http_method": "GET",
+          "http_path": "/actors/{actorId}/films/{filmId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "searchActorByName",
+          "signature": "ResponseEntity<CollectionModel<ActorDto.ActorResponse>> searchActorByName(Map<String,String> input)",
+          "description": "Searches actors by name.",
+          "http_method": "POST",
+          "http_path": "/actors/search",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        }
+      ],
+      "dependencies": [
+        "ActorService",
+        "ActorRepresentationModelAssembler",
+        "ActorDetailsRepresentationModelAssembler",
+        "FilmRepresentationModelAssembler",
+        "FilmDetailsRepresentationModelAssembler"
+      ],
+      "complexity": "high",
+      "noteworthy": [
+        "Heavy HATEOAS link assembly (removeLinks/add) makes the film endpoints the most complex in the controller.",
+        "Filter parsing maps query params into a FilmDto.FilterOption via constant lookup maps."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/controller/FilmController.java",
+      "class_name": "FilmController",
+      "package": "com.example.app.services.catalog.controller",
+      "component_type": "controller",
+      "responsibility": "Exposes CRUD endpoints for films and their actor associations.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/films\")",
+        "@Secured"
+      ],
+      "methods": [
+        {
+          "name": "getFilmList",
+          "signature": "ResponseEntity<CollectionModel<FilmDto.FilmResponse>> getFilmList(...)",
+          "description": "Lists films with filtering/paging.",
+          "http_method": "GET",
+          "http_path": "/films",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "addFilm",
+          "signature": "ResponseEntity<Void> addFilm(FilmDto.FilmRequest)",
+          "description": "Creates a film.",
+          "http_method": "POST",
+          "http_path": "/films",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getFilm",
+          "signature": "ResponseEntity<FilmDto.FilmResponse> getFilm(Integer filmId)",
+          "description": "Fetches a film by id.",
+          "http_method": "GET",
+          "http_path": "/films/{filmId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "updateFilm",
+          "signature": "ResponseEntity<Void> updateFilm(Integer filmId, FilmDto.FilmRequest)",
+          "description": "Updates a film.",
+          "http_method": "PUT",
+          "http_path": "/films/{filmId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteFilm",
+          "signature": "ResponseEntity<Void> deleteFilm(Integer filmId)",
+          "description": "Deletes a film.",
+          "http_method": "DELETE",
+          "http_path": "/films/{filmId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getFilmActorList",
+          "signature": "ResponseEntity<CollectionModel<ActorDto.ActorResponse>> getFilmActorList(Integer filmId, ...)",
+          "description": "Lists actors in a film.",
+          "http_method": "GET",
+          "http_path": "/films/{filmId}/actors",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "getFilmActor",
+          "signature": "ResponseEntity<ActorDto.ActorResponse> getFilmActor(Integer filmId, Integer actorId)",
+          "description": "Fetches one actor within a film.",
+          "http_method": "GET",
+          "http_path": "/films/{filmId}/actors/{actorId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "getFilmDetails",
+          "signature": "ResponseEntity<FilmDetailsDto.FilmDetailsResponse> getFilmDetails(Integer filmId)",
+          "description": "Detailed film projection.",
+          "http_method": "GET",
+          "http_path": "/films/{filmId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        }
+      ],
+      "dependencies": [
+        "FilmService",
+        "FilmRepresentationModelAssembler",
+        "ActorRepresentationModelAssembler"
+      ],
+      "complexity": "medium",
+      "noteworthy": []
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/service/ActorServiceImpl.java",
+      "class_name": "ActorServiceImpl",
+      "package": "com.example.app.services.catalog.service",
+      "component_type": "service",
+      "responsibility": "Transactional business logic for actors; delegates persistence to ActorRepository and maps entities to DTOs.",
+      "annotations": [
+        "@Service",
+        "@RequiredArgsConstructor",
+        "@Transactional",
+        "@Cacheable",
+        "@CachePut",
+        "@CacheEvict"
+      ],
+      "methods": [
+        {
+          "name": "getActorList",
+          "signature": "List<ActorDto.Actor> getActorList(Pageable)",
+          "description": "Reads a page of actors and maps to DTOs.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "@Transactional(readOnly)"
+        },
+        {
+          "name": "getActor",
+          "signature": "Optional<ActorDto.Actor> getActor(Integer actorId)",
+          "description": "Reads an actor by id (cached); throws ResourceNotFoundException if absent.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "@Cacheable actorResponseCache"
+        },
+        {
+          "name": "getActorDetails",
+          "signature": "Optional<ActorDetailsDto.ActorDetails> getActorDetails(Integer actorId)",
+          "description": "Reads an actor details projection.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "getActorFilmList",
+          "signature": "List<FilmDto.Film> getActorFilmList(Integer, FilmDto.FilterOption, Pageable)",
+          "description": "Reads an actor's films with filter conditions.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "searchActorList",
+          "signature": "List<ActorDto.Actor> searchActorList(String name)",
+          "description": "Searches actors by first/last name substring.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "addActor",
+          "signature": "ActorDto.Actor addActor(ActorDto.ActorRequest)",
+          "description": "Persists a new actor.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "@Transactional"
+        },
+        {
+          "name": "updateActor",
+          "signature": "ActorDto.Actor updateActor(Integer actorId, ActorDto.ActorRequest)",
+          "description": "Updates an actor and refreshes cache.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "@CachePut"
+        },
+        {
+          "name": "deleteActor",
+          "signature": "void deleteActor(Integer actorId)",
+          "description": "Deletes an actor and evicts cache.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "@CacheEvict"
+        },
+        {
+          "name": "removeActorFilm",
+          "signature": "void removeActorFilm(Integer actorId, Integer filmId)",
+          "description": "Removes an actor-film link.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "ActorRepository",
+        "ActorMapper"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Demonstrates Spring Cache (@Cacheable/@CachePut/@CacheEvict) on the actor read/update/delete path.",
+        "Consistent use of ResourceNotFoundException for missing resources."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/repository/ActorRepository.java",
+      "class_name": "ActorRepository",
+      "package": "com.example.app.services.catalog.repository",
+      "component_type": "repository",
+      "responsibility": "Spring Data JPA repository for actors, composed with a QueryDSL custom repository for complex reads.",
+      "annotations": [
+        "@Repository (Spring Data)"
+      ],
+      "methods": [
+        {
+          "name": "findActorEntitiesByFullNameFirstNameContainsOrFullNameLastNameContains",
+          "signature": "List<ActorEntity> ...Contains(String first, String last)",
+          "description": "Derived query: finds actors whose embedded first/last name contains the term.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "(inherited)",
+          "signature": "CrudRepository/JpaRepository methods",
+          "description": "Standard save/find/delete operations.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "JpaRepository<ActorEntity,Integer>",
+        "CustomActorRepository"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Combines derived-query methods with a QueryDSL custom fragment (repository composition)."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/repository/custom/CustomActorRepositoryImpl.java",
+      "class_name": "CustomActorRepositoryImpl",
+      "package": "com.example.app.services.catalog.repository.custom",
+      "component_type": "repository",
+      "responsibility": "Implements complex actor/film read queries using QueryDSL and Blaze-Persistence projections.",
+      "annotations": [
+        "@Repository",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "findAllActorDetailsList",
+          "signature": "List<ActorDetailsDto.ActorDetails> findAllActorDetailsList()",
+          "description": "Fetches all actor detail projections (with group_concat of film titles).",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "high",
+          "notes": null
+        },
+        {
+          "name": "findActorDetailsById",
+          "signature": "Optional<ActorDetailsDto.ActorDetails> findActorDetailsById(Integer actorId)",
+          "description": "Fetches one actor detail projection.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "findAllActorFilmListByIdWithCondition",
+          "signature": "List<FilmDto.Film> ...(Integer, FilmDto.FilterOption, Pageable)",
+          "description": "Builds a filtered, paged film query joined through film_actor.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "high",
+          "notes": null
+        },
+        {
+          "name": "addActorFilm",
+          "signature": "Optional<FilmDto.Film> addActorFilm(Integer actorId, Integer filmId)",
+          "description": "Inserts an actor-film association.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "removeActorFilm",
+          "signature": "void removeActorFilm(Integer actorId, Integer filmId)",
+          "description": "Deletes an actor-film association.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "JPAQueryFactory",
+        "BlazeJPAQueryFactory",
+        "Q-classes (QActorEntity, QFilmEntity, ...)",
+        "ExpressionUtils.filterEquals"
+      ],
+      "complexity": "high",
+      "noteworthy": [
+        "QueryDSL + Blaze-Persistence with Projections.constructor for typed DTO projections.",
+        "Uses JPQLNextExpressions.groupConcat — a Blaze extension beyond standard JPQL.",
+        "A primary complexity hotspot of the codebase."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/domain/entity/ActorEntity.java",
+      "class_name": "ActorEntity",
+      "package": "com.example.app.services.catalog.domain.entity",
+      "component_type": "entity",
+      "responsibility": "JPA entity mapping the sakila.actor table; embeds a FullName value object.",
+      "annotations": [
+        "@Entity(\"actor\")",
+        "@Table(schema=sakila, indexes=idx_actor_last_name)",
+        "@Getter",
+        "@Builder",
+        "@Embedded FullName",
+        "@UpdateTimestamp"
+      ],
+      "methods": [
+        {
+          "name": "update",
+          "signature": "void update(ActorEntity entity)",
+          "description": "Copies mutable fields from another entity (Updatable contract).",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "equals",
+          "signature": "boolean equals(Object o)",
+          "description": "Value equality using Guava Objects.equal.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "hashCode",
+          "signature": "int hashCode()",
+          "description": "Hash based on id, fullName, lastUpdate.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "FullName (embeddable)",
+        "Updatable<ActorEntity>",
+        "Guava Objects"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Uses Lombok @Builder with a PROTECTED no-args constructor (JPA-friendly, immutability-leaning).",
+        "MySQL-specific column definitions (SMALLINT UNSIGNED)."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/rental/controller/RentalController.java",
+      "class_name": "RentalController",
+      "package": "com.example.app.services.rental.controller",
+      "component_type": "controller",
+      "responsibility": "Exposes rental lifecycle endpoints including renting and returning a DVD.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/rentals\")",
+        "@Secured"
+      ],
+      "methods": [
+        {
+          "name": "getRentalList",
+          "signature": "ResponseEntity<CollectionModel<RentalDto.RentalResponse>> getRentalList(Pageable)",
+          "description": "Lists rentals.",
+          "http_method": "GET",
+          "http_path": "/rentals",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "rentDvd",
+          "signature": "ResponseEntity<Void> rentDvd(RentalDto.RentalCreateRequest)",
+          "description": "Creates a rental (rent a DVD).",
+          "http_method": "POST",
+          "http_path": "/rentals",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getRental",
+          "signature": "ResponseEntity<RentalDto.RentalResponse> getRental(Integer rentalId)",
+          "description": "Fetches a rental.",
+          "http_method": "GET",
+          "http_path": "/rentals/{rentalId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "updateRental",
+          "signature": "ResponseEntity<Void> updateRental(Integer rentalId, ...)",
+          "description": "Updates a rental.",
+          "http_method": "PUT",
+          "http_path": "/rentals/{rentalId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteRental",
+          "signature": "ResponseEntity<Void> deleteRental(Integer rentalId)",
+          "description": "Deletes a rental.",
+          "http_method": "DELETE",
+          "http_path": "/rentals/{rentalId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "returnDvd",
+          "signature": "ResponseEntity<Void> returnDvd(Map<String,String> input)",
+          "description": "Marks a rental as returned.",
+          "http_method": "PUT",
+          "http_path": "/rentals/return",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "RentalService",
+        "RentalRepresentationModelAssembler"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Models a real business action (rent/return) beyond plain CRUD."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/rental/service/RentalServiceImpl.java",
+      "class_name": "RentalServiceImpl",
+      "package": "com.example.app.services.rental.service",
+      "component_type": "service",
+      "responsibility": "Transactional rental business logic: creating rentals and processing returns.",
+      "annotations": [
+        "@Service",
+        "@Transactional",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "getRentalList",
+          "signature": "List<RentalDto.Rental> getRentalList(Pageable)",
+          "description": "Reads rentals.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "rentDvd",
+          "signature": "RentalDto.Rental rentDvd(RentalDto.RentalCreateRequest)",
+          "description": "Creates a rental record for a customer/inventory item.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "returnDvd",
+          "signature": "void returnDvd(Integer rentalId)",
+          "description": "Sets the return date / status for a rental.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "RentalRepository",
+        "RentalMapper"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Encapsulates rental state transitions (see RentalStatus value object)."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/customer/controller/CustomerController.java",
+      "class_name": "CustomerController",
+      "package": "com.example.app.services.customer.controller",
+      "component_type": "controller",
+      "responsibility": "CRUD for customers plus access to a customer's payments and rentals.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/customers\")",
+        "@Secured(ROLE_MANAGE)"
+      ],
+      "methods": [
+        {
+          "name": "getCustomerList",
+          "signature": "ResponseEntity<CollectionModel<CustomerDto.CustomerResponse>> getCustomerList(Pageable)",
+          "description": "Lists customers.",
+          "http_method": "GET",
+          "http_path": "/customers",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "addCustomer",
+          "signature": "ResponseEntity<Void> addCustomer(CustomerDto.CustomerRequest)",
+          "description": "Creates a customer.",
+          "http_method": "POST",
+          "http_path": "/customers",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getCustomer",
+          "signature": "ResponseEntity<CustomerDto.CustomerResponse> getCustomer(Integer customerId)",
+          "description": "Fetches a customer.",
+          "http_method": "GET",
+          "http_path": "/customers/{customerId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "updateCustomer",
+          "signature": "ResponseEntity<Void> updateCustomer(Integer customerId, ...)",
+          "description": "Updates a customer.",
+          "http_method": "PUT",
+          "http_path": "/customers/{customerId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteCustomer",
+          "signature": "ResponseEntity<Void> deleteCustomer(Integer customerId)",
+          "description": "Deletes a customer.",
+          "http_method": "DELETE",
+          "http_path": "/customers/{customerId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getCustomerDetails",
+          "signature": "ResponseEntity<CustomerDetailsDto.CustomerDetailsResponse> getCustomerDetails(Integer customerId)",
+          "description": "Aggregated customer details.",
+          "http_method": "GET",
+          "http_path": "/customers/{customerId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getCustomerPaymentList",
+          "signature": "ResponseEntity<CollectionModel<PaymentDto.PaymentResponse>> getCustomerPaymentList(Integer customerId, Pageable)",
+          "description": "Lists a customer's payments.",
+          "http_method": "GET",
+          "http_path": "/customers/{customerId}/payments",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getCustomerRentalList",
+          "signature": "ResponseEntity<CollectionModel<RentalDto.RentalResponse>> getCustomerRentalList(Integer customerId, Pageable)",
+          "description": "Lists a customer's rentals.",
+          "http_method": "GET",
+          "http_path": "/customers/{customerId}/rentals",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "CustomerService",
+        "CustomerRepresentationModelAssembler",
+        "PaymentRepresentationModelAssembler",
+        "RentalRepresentationModelAssembler"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Cross-domain reads (payments, rentals) surfaced under the customer resource."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/location/controller/LocationController.java",
+      "class_name": "LocationController",
+      "package": "com.example.app.services.location.controller",
+      "component_type": "controller",
+      "responsibility": "Manages address and city sub-resources under the /location namespace.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/location\")",
+        "@Secured"
+      ],
+      "methods": [
+        {
+          "name": "getAddressList",
+          "signature": "ResponseEntity<CollectionModel<AddressDto.AddressResponse>> getAddressList(Pageable)",
+          "description": "Lists addresses.",
+          "http_method": "GET",
+          "http_path": "/location/addresses",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "addAddress",
+          "signature": "ResponseEntity<Void> addAddress(AddressDto.AddressRequest)",
+          "description": "Creates an address.",
+          "http_method": "POST",
+          "http_path": "/location/addresses",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getAddress",
+          "signature": "ResponseEntity<AddressDto.AddressResponse> getAddress(Integer addressId)",
+          "description": "Fetches an address.",
+          "http_method": "GET",
+          "http_path": "/location/addresses/{addressId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "updateAddress",
+          "signature": "ResponseEntity<Void> updateAddress(Integer addressId, ...)",
+          "description": "Updates an address.",
+          "http_method": "PUT",
+          "http_path": "/location/addresses/{addressId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteAddress",
+          "signature": "ResponseEntity<Void> deleteAddress(Integer addressId)",
+          "description": "Deletes an address.",
+          "http_method": "DELETE",
+          "http_path": "/location/addresses/{addressId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getAddressDetails",
+          "signature": "ResponseEntity<AddressDto.AddressResponse> getAddressDetails(Integer addressId)",
+          "description": "Address details.",
+          "http_method": "GET",
+          "http_path": "/location/addresses/{addressId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "getCityList",
+          "signature": "ResponseEntity<CollectionModel<CityDto.CityResponse>> getCityList(Pageable)",
+          "description": "Lists cities.",
+          "http_method": "GET",
+          "http_path": "/location/cities",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "addCity",
+          "signature": "ResponseEntity<Void> addCity(CityDto.CityRequest)",
+          "description": "Creates a city.",
+          "http_method": "POST",
+          "http_path": "/location/cities",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getCity",
+          "signature": "ResponseEntity<CityDto.CityResponse> getCity(Integer cityId)",
+          "description": "Fetches a city.",
+          "http_method": "GET",
+          "http_path": "/location/cities/{cityId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_READ"
+        },
+        {
+          "name": "updateCity",
+          "signature": "ResponseEntity<Void> updateCity(Integer cityId, ...)",
+          "description": "Updates a city.",
+          "http_method": "PUT",
+          "http_path": "/location/cities/{cityId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deleteCity",
+          "signature": "ResponseEntity<Void> deleteCity(Integer cityId)",
+          "description": "Deletes a city.",
+          "http_method": "DELETE",
+          "http_path": "/location/cities/{cityId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "LocationService",
+        "AddressRepresentationModelAssembler",
+        "CityRepresentationModelAssembler"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Two sub-resources (addresses, cities) grouped under one controller; Country is modeled as a constant enum."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/payment/controller/PaymentController.java",
+      "class_name": "PaymentController",
+      "package": "com.example.app.services.payment.controller",
+      "component_type": "controller",
+      "responsibility": "Read/update/delete endpoints for payments (creation happens via rentals).",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/payments\")",
+        "@Secured(ROLE_MANAGE)"
+      ],
+      "methods": [
+        {
+          "name": "getPaymentList",
+          "signature": "ResponseEntity<CollectionModel<PaymentDto.PaymentResponse>> getPaymentList(Pageable)",
+          "description": "Lists payments.",
+          "http_method": "GET",
+          "http_path": "/payments",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getPayment",
+          "signature": "ResponseEntity<PaymentDto.PaymentResponse> getPayment(Integer paymentId)",
+          "description": "Fetches a payment.",
+          "http_method": "GET",
+          "http_path": "/payments/{paymentId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "updatePayment",
+          "signature": "ResponseEntity<Void> updatePayment(Integer paymentId, ...)",
+          "description": "Updates a payment.",
+          "http_method": "PUT",
+          "http_path": "/payments/{paymentId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "deletePayment",
+          "signature": "ResponseEntity<Void> deletePayment(Integer paymentId)",
+          "description": "Deletes a payment.",
+          "http_method": "DELETE",
+          "http_path": "/payments/{paymentId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getPaymentDetails",
+          "signature": "ResponseEntity<PaymentDto.PaymentResponse> getPaymentDetails(Integer paymentId)",
+          "description": "Payment details.",
+          "http_method": "GET",
+          "http_path": "/payments/{paymentId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "PaymentService",
+        "PaymentRepresentationModelAssembler"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "No create endpoint — payments originate from the rental flow."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/staff/controller/StaffController.java",
+      "class_name": "StaffController",
+      "package": "com.example.app.services.staff.controller",
+      "component_type": "controller",
+      "responsibility": "CRUD for staff members; write operations require ROLE_ADMIN.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/staffs\")",
+        "@Secured"
+      ],
+      "methods": [
+        {
+          "name": "getStaffList",
+          "signature": "ResponseEntity<CollectionModel<StaffDto.StaffResponse>> getStaffList(Pageable)",
+          "description": "Lists staff.",
+          "http_method": "GET",
+          "http_path": "/staffs",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "addStaff",
+          "signature": "ResponseEntity<Void> addStaff(StaffDto.StaffRequest)",
+          "description": "Creates a staff member.",
+          "http_method": "POST",
+          "http_path": "/staffs",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "getStaff",
+          "signature": "ResponseEntity<StaffDto.StaffResponse> getStaff(Integer staffId)",
+          "description": "Fetches a staff member.",
+          "http_method": "GET",
+          "http_path": "/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "updateStaff",
+          "signature": "ResponseEntity<Void> updateStaff(Integer staffId, ...)",
+          "description": "Updates a staff member.",
+          "http_method": "PUT",
+          "http_path": "/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "deleteStaff",
+          "signature": "ResponseEntity<Void> deleteStaff(Integer staffId)",
+          "description": "Deletes a staff member.",
+          "http_method": "DELETE",
+          "http_path": "/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "getStaffDetails",
+          "signature": "ResponseEntity<StaffDetailsDto.StaffDetailsResponse> getStaffDetails(Integer staffId)",
+          "description": "Staff details.",
+          "http_method": "GET",
+          "http_path": "/staffs/{staffId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "StaffService",
+        "StaffRepresentationModelAssembler"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Demonstrates the three-tier role model: READ < MANAGE < ADMIN."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/store/controller/StoreController.java",
+      "class_name": "StoreController",
+      "package": "com.example.app.services.store.controller",
+      "component_type": "controller",
+      "responsibility": "CRUD for stores and management of store-staff associations.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/stores\")",
+        "@Secured"
+      ],
+      "methods": [
+        {
+          "name": "getStoreList",
+          "signature": "ResponseEntity<CollectionModel<StoreDto.StoreResponse>> getStoreList(Pageable)",
+          "description": "Lists stores.",
+          "http_method": "GET",
+          "http_path": "/stores",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "addStore",
+          "signature": "ResponseEntity<Void> addStore(StoreDto.StoreRequest)",
+          "description": "Creates a store.",
+          "http_method": "POST",
+          "http_path": "/stores",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "getStore",
+          "signature": "ResponseEntity<StoreDto.StoreResponse> getStore(Integer storeId)",
+          "description": "Fetches a store.",
+          "http_method": "GET",
+          "http_path": "/stores/{storeId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "updateStore",
+          "signature": "ResponseEntity<Void> updateStore(Integer storeId, ...)",
+          "description": "Updates a store.",
+          "http_method": "PUT",
+          "http_path": "/stores/{storeId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "deleteStore",
+          "signature": "ResponseEntity<Void> deleteStore(Integer storeId)",
+          "description": "Deletes a store.",
+          "http_method": "DELETE",
+          "http_path": "/stores/{storeId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "getStoreStaffList",
+          "signature": "ResponseEntity<CollectionModel<StaffDto.StaffResponse>> getStoreStaffList(Integer storeId)",
+          "description": "Lists a store's staff.",
+          "http_method": "GET",
+          "http_path": "/stores/{storeId}/staffs",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "getStoreStaff",
+          "signature": "ResponseEntity<StaffDto.StaffResponse> getStoreStaff(Integer storeId, Integer staffId)",
+          "description": "Fetches one store staff.",
+          "http_method": "GET",
+          "http_path": "/stores/{storeId}/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "addStoreStaff",
+          "signature": "ResponseEntity<Void> addStoreStaff(Integer storeId, Integer staffId)",
+          "description": "Assigns staff to a store.",
+          "http_method": "POST",
+          "http_path": "/stores/{storeId}/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "updateStoreStaff",
+          "signature": "ResponseEntity<Void> updateStoreStaff(Integer storeId, Integer staffId, ...)",
+          "description": "Updates a store-staff link.",
+          "http_method": "PUT",
+          "http_path": "/stores/{storeId}/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "deleteStoreStaff",
+          "signature": "ResponseEntity<Void> deleteStoreStaff(Integer storeId, Integer staffId)",
+          "description": "Removes a store-staff link.",
+          "http_method": "DELETE",
+          "http_path": "/stores/{storeId}/staffs/{staffId}",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_ADMIN"
+        },
+        {
+          "name": "getStoreDetails",
+          "signature": "ResponseEntity<StoreDetailsDto.StoreDetailsResponse> getStoreDetails(Integer storeId)",
+          "description": "Store details.",
+          "http_method": "GET",
+          "http_path": "/stores/{storeId}/details",
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "StoreService",
+        "StoreRepresentationModelAssembler",
+        "StaffRepresentationModelAssembler"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Nested store/staff resource management."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/store/controller/ReportController.java",
+      "class_name": "ReportController",
+      "package": "com.example.app.services.store.controller",
+      "component_type": "controller",
+      "responsibility": "Read-only reporting endpoints aggregating sales by category and by store.",
+      "annotations": [
+        "@RestController",
+        "@RequestMapping(\"/reports\")",
+        "@Secured(ROLE_MANAGE)"
+      ],
+      "methods": [
+        {
+          "name": "reportSalesByCategory",
+          "signature": "ResponseEntity<CollectionModel<CategorySalesDto.CategorySalesResponse>> reportSalesByCategory()",
+          "description": "Aggregates total sales grouped by film category.",
+          "http_method": "GET",
+          "http_path": "/reports/sales/categories",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        },
+        {
+          "name": "reportSalesByStore",
+          "signature": "ResponseEntity<CollectionModel<StoreSalesDto.StoreSalesResponse>> reportSalesByStore()",
+          "description": "Aggregates total sales grouped by store.",
+          "http_method": "GET",
+          "http_path": "/reports/sales/stores",
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": "Secured ROLE_MANAGE"
+        }
+      ],
+      "dependencies": [
+        "ReportService (QueryDSL aggregation)"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Analytical/reporting queries distinct from CRUD; backed by QueryDSL aggregation."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/config/SecurityFilterConfig.java",
+      "class_name": "SecurityFilterConfig",
+      "package": "com.example.app.config",
+      "component_type": "config",
+      "responsibility": "Configures the Spring Security filter chain: stateless JWT auth, method security, and public /login.",
+      "annotations": [
+        "@Configuration",
+        "@EnableMethodSecurity(securedEnabled=true)",
+        "@RequiredArgsConstructor"
+      ],
+      "methods": [
+        {
+          "name": "filterChain",
+          "signature": "SecurityFilterChain filterChain(HttpSecurity http)",
+          "description": "Permits /login, requires auth elsewhere, sets STATELESS sessions, disables CSRF/CORS/formLogin, and inserts the JWT filter.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "JwtAuthenticationFilter",
+        "HttpSecurity"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Stateless session policy suits a token API.",
+        "CSRF and CORS are disabled — acceptable for a stateless bearer-token API but worth an explicit note."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/config/PersistenceConfig.java",
+      "class_name": "PersistenceConfig",
+      "package": "com.example.app.config",
+      "component_type": "config",
+      "responsibility": "Wires QueryDSL (JPA + SQL/MySQL) and Blaze-Persistence query factories and enables JPA repositories per domain.",
+      "annotations": [
+        "@Configuration",
+        "@EnableJpaRepositories(basePackages=...)"
+      ],
+      "methods": [
+        {
+          "name": "jpaQueryFactory",
+          "signature": "JPAQueryFactory jpaQueryFactory()",
+          "description": "QueryDSL JPA query factory bean.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "sqlQueryFactory",
+          "signature": "SQLQueryFactory sqlQueryFactory(DataSource)",
+          "description": "QueryDSL SQL query factory (Spring connection provider).",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "mysqlQueryFactory",
+          "signature": "MySQLQueryFactory mysqlQueryFactory(DataSource)",
+          "description": "MySQL-specific QueryDSL factory.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "querydslMySQLConfiguration",
+          "signature": "com.querydsl.sql.Configuration querydslMySQLConfiguration()",
+          "description": "QueryDSL SQL configuration with MySQL templates + Spring exception translation.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "blazeJPAQueryFactory",
+          "signature": "BlazeJPAQueryFactory blazeJPAQueryFactory()",
+          "description": "Blaze-Persistence query factory bean.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "criteriaBuilderFactory",
+          "signature": "CriteriaBuilderFactory criteriaBuilderFactory()",
+          "description": "Blaze CriteriaBuilderFactory bean.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "EntityManager",
+        "DataSource",
+        "QueryDSL",
+        "Blaze-Persistence"
+      ],
+      "complexity": "high",
+      "noteworthy": [
+        "Explicitly enumerates each domain's repository package for @EnableJpaRepositories.",
+        "Combines three query mechanisms (JPA, raw SQL, Blaze) — powerful but adds cognitive load."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/config/RedisConfig.java",
+      "class_name": "RedisConfig",
+      "package": "com.example.app.config",
+      "component_type": "config",
+      "responsibility": "Configures Redis-backed Spring Cache (connection factory, cache manager, serializers).",
+      "annotations": [
+        "@Configuration"
+      ],
+      "methods": [
+        {
+          "name": "cacheManager",
+          "signature": "CacheManager cacheManager(RedisConnectionFactory)",
+          "description": "Builds the Redis cache manager used by @Cacheable.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "Spring Data Redis (Lettuce)"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Backs the caching annotations seen in service implementations."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/common/exception/GlobalExceptionHandler.java",
+      "class_name": "GlobalExceptionHandler",
+      "package": "com.example.app.common.exception",
+      "component_type": "exception",
+      "responsibility": "Central @ControllerAdvice translating domain exceptions into structured ErrorResponseDto payloads.",
+      "annotations": [
+        "@ControllerAdvice",
+        "@Slf4j"
+      ],
+      "methods": [
+        {
+          "name": "handleResourceNotFoundException",
+          "signature": "ResponseEntity handleResourceNotFoundException(ResourceNotFoundException)",
+          "description": "Maps to RESOURCE_NOT_FOUND error code.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "handleResourceNotAvailableException",
+          "signature": "ResponseEntity handleResourceNotAvailableException(ResourceNotAvailableException)",
+          "description": "Maps to RESOURCE_NOT_AVAILABLE.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "handleException",
+          "signature": "ResponseEntity handleException(Exception)",
+          "description": "Catch-all mapping to GENERIC_ERROR.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "ErrorCode",
+        "ErrorResponseDto",
+        "ResponseEntityExceptionHandler"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Consistent error contract via ErrorCode enum.",
+        "Uses e.printStackTrace() alongside SLF4J logging — an anti-pattern; should log the stack trace via the logger instead."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/common/filter/MdcLoggingFilter.java",
+      "class_name": "MdcLoggingFilter",
+      "package": "com.example.app.common.filter",
+      "component_type": "filter",
+      "responsibility": "Servlet filter that populates the SLF4J MDC (e.g. request id) for correlated logging.",
+      "annotations": [
+        "@Component"
+      ],
+      "methods": [
+        {
+          "name": "doFilter",
+          "signature": "void doFilter(ServletRequest, ServletResponse, FilterChain)",
+          "description": "Adds MDC context around each request and clears it afterward.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "SLF4J MDC"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Supports observability by tagging logs with per-request context."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/assembler/ActorRepresentationModelAssembler.java",
+      "class_name": "ActorRepresentationModelAssembler",
+      "package": "com.example.app.services.catalog.assembler",
+      "component_type": "assembler",
+      "responsibility": "Converts Actor DTOs into Spring HATEOAS RepresentationModels with HAL links.",
+      "annotations": [
+        "@Component"
+      ],
+      "methods": [
+        {
+          "name": "toModel",
+          "signature": "ActorDto.ActorResponse toModel(ActorDto.Actor entity)",
+          "description": "Wraps an actor DTO and attaches self/related HAL links.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        },
+        {
+          "name": "toCollectionModel",
+          "signature": "CollectionModel<ActorDto.ActorResponse> toCollectionModel(Iterable)",
+          "description": "Builds a collection model with links.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "medium",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "RepresentationModelAssemblerSupport",
+        "WebMvcLinkBuilder"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "One of many per-resource assemblers implementing the HATEOAS layer."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/domain/mapper/ActorMapper.java",
+      "class_name": "ActorMapper",
+      "package": "com.example.app.services.catalog.domain.mapper",
+      "component_type": "mapper",
+      "responsibility": "MapStruct mapper converting between ActorEntity and Actor DTOs.",
+      "annotations": [
+        "@Mapper (MapStruct)"
+      ],
+      "methods": [
+        {
+          "name": "mapToDto",
+          "signature": "ActorDto.Actor mapToDto(ActorEntity entity)",
+          "description": "Entity → DTO.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "mapToDtoList",
+          "signature": "List<ActorDto.Actor> mapToDtoList(Page/List entities)",
+          "description": "Bulk entity → DTO.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        },
+        {
+          "name": "mapToEntity",
+          "signature": "ActorEntity mapToEntity(ActorDto.ActorRequest model)",
+          "description": "Request DTO → entity.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "MapStruct",
+        "GenericMapper",
+        "FullNameMapper"
+      ],
+      "complexity": "low",
+      "noteworthy": [
+        "Compile-time mapping (MapStruct via kapt) avoids reflection overhead."
+      ]
+    },
+    {
+      "file_path": "src/main/java/com/example/app/services/catalog/domain/dto/FilmDto.java",
+      "class_name": "FilmDto",
+      "package": "com.example.app.services.catalog.domain.dto",
+      "component_type": "dto",
+      "responsibility": "Aggregates film-related DTOs (Film, FilmRequest, FilmResponse, FilterOption) as nested types.",
+      "annotations": [
+        "@Value/@Builder (Lombok)",
+        "@FieldNameConstants",
+        "@Relation (HATEOAS)"
+      ],
+      "methods": [
+        {
+          "name": "(records/inner types)",
+          "signature": "nested Film, FilmRequest, FilmResponse, FilterOption",
+          "description": "Typed request/response models and a filter-option builder used by controllers/services.",
+          "http_method": null,
+          "http_path": null,
+          "parameters": [],
+          "returns": null,
+          "complexity": "low",
+          "notes": null
+        }
+      ],
+      "dependencies": [
+        "Lombok",
+        "Spring HATEOAS RepresentationModel",
+        "Category/FilmRating constants"
+      ],
+      "complexity": "medium",
+      "noteworthy": [
+        "Largest DTO (~379 lines); groups multiple related models via inner classes.",
+        "@FieldNameConstants generates a Fields helper used in QueryDSL projections."
+      ]
+    }
+  ]
+}
